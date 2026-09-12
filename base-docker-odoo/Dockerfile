@@ -5,8 +5,9 @@ FROM odoo:17.0
 # user, which would install into /var/lib/odoo/.local (hidden by the
 # odoo-web volume mounted at /var/lib/odoo).
 # Pin ~=1.8 to stay compatible with the VS Code / VSCodium debug adapter.
+# --break-system-packages: PEP 668 externally-managed guard in Odoo 18/19 images.
 USER root
-RUN pip3 install --no-cache-dir "debugpy~=1.8"
+RUN pip3 install --no-cache-dir --break-system-packages "debugpy~=1.8"
 USER odoo
 
 # Install additional dependencies
