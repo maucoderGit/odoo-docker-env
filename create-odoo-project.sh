@@ -34,6 +34,7 @@ print_usage() {
     echo "  -d, --db <dbname>         Database name (default: project name)"
     echo "  -p, --port <port>         HTTP port (default: 8069)"
     echo "  -dbport <port>            PostgreSQL port (default: 5432)"
+    echo "  --pg-version <version>    PostgreSQL image version (default: auto by Odoo version)"
     echo "  --debug <ide>             Debugger support to generate:"
     echo "                              codium  (default, full setup)"
     echo "                              pycharm (TODO, placeholder only)"
@@ -54,6 +55,7 @@ ODOO_VERSION=""
 DB_NAME=""
 HTTP_PORT=""
 DB_PORT=""
+POSTGRES_VERSION=""
 ADMIN_PASSWORD=""
 DB_USER="odoo"
 DB_PASSWORD="odoo"
@@ -85,6 +87,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dbport)
             DB_PORT="$2"
+            shift 2
+            ;;
+        --pg-version)
+            POSTGRES_VERSION="$2"
             shift 2
             ;;
         --debug)
@@ -240,6 +246,16 @@ if ! [[ "$ODOO_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
     exit 1
 fi
 
+# Pick a PostgreSQL version that satisfies this Odoo major's minimum requirement
+# (Odoo 19 requires 15, Odoo 20+ requires 16; older releases are fine on 13).
+if [ -z "$POSTGRES_VERSION" ]; then
+    case "${ODOO_VERSION%%.*}" in
+        19)    POSTGRES_VERSION=15 ;;
+        2[0-9]) POSTGRES_VERSION=16 ;;
+        *)     POSTGRES_VERSION=13 ;;
+    esac
+fi
+
 # Check if project directory already exists
 if [ -d "$PROJECT_NAME" ]; then
     echo -e "${RED}Error: Directory '$PROJECT_NAME' already exists${NC}"
@@ -290,7 +306,6 @@ fi
 # Create docker-compose.yml
 echo -e "${BLUE}[3/7] Creating docker-compose.yml...${NC}"
 cat > "$PROJECT_NAME/docker-compose.yml" << EOF
-version: "3"
 services:
   odoo:
     build:
@@ -349,7 +364,7 @@ cat >> "$PROJECT_NAME/docker-compose.yml" << EOF
     restart: unless-stopped
 
   db:
-    image: postgres:${POSTGRES_VERSION:-13}
+    image: postgres:${POSTGRES_VERSION}
     container_name: ${PROJECT_NAME}_db
     environment:
       - POSTGRES_DB=postgres
@@ -368,7 +383,7 @@ cat >> "$PROJECT_NAME/docker-compose.yml" << EOF
     environment:
       - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL}
       - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD}
-      - PGADMIN_CONFIG_SERVER_MODE=false
+      - PGADMIN_CONFIG_SERVER_MODE=False
     ports:
       - "5050:80"
     volumes:
